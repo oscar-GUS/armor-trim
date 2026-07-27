@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: #0D0D0F;
+  color: #F5F5F0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Los iconos de Minecraft son de 16×16: se escalan sin difuminar. */
+.pixel {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* Barras de desplazamiento discretas dentro de los paneles. */
+.scroll-fino::-webkit-scrollbar { width: 8px; height: 8px; }
+.scroll-fino::-webkit-scrollbar-track { background: transparent; }
+.scroll-fino::-webkit-scrollbar-thumb { background: #2A2A2E; border-radius: 999px; }
+.scroll-fino::-webkit-scrollbar-thumb:hover { background: #3A3A40; }
