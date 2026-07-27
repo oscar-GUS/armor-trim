@@ -142,7 +142,8 @@ export function desdeURL(s: string): Estado | null {
     const [mat, tin, pat, tri] = partes[i].split('.')
     if (!MATERIALES.some((m) => m.id === mat)) return null
     estado[PIEZAS[i]] = {
-      material: mat,
+      // Un enlace manipulado podría pedir una pieza que ese material no tiene.
+      material: admite(mat, PIEZAS[i]) ? mat : CONFIG_INICIAL.material,
       tinte: TINTES.some((t) => t.id === tin) ? tin : null,
       patron: PATRONES.some((p) => p.id === pat) ? pat : null,
       trim: TRIM_MATERIALES.some((t) => t.id === tri) ? tri : null,
