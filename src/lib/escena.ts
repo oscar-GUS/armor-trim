@@ -135,11 +135,10 @@ export function crearEscena(contenedor: HTMLElement): Escena {
   texSkin.minFilter = THREE.NearestFilter
   texSkin.colorSpace = THREE.SRGBColorSpace
 
+  // Cuerpo y segunda capa van con una sola cara, como el juego: son cajas
+  // cerradas y dibujar el interior solo mete costuras en los codos y el cuello.
   const matBase = new THREE.MeshStandardMaterial({ map: texSkin, roughness: 1, metalness: 0, alphaTest: 0.5 })
-  const matOverlay = new THREE.MeshStandardMaterial({
-    map: texSkin, roughness: 1, metalness: 0, alphaTest: 0.5, side: THREE.DoubleSide,
-    polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1,
-  })
+  const matOverlay = new THREE.MeshStandardMaterial({ map: texSkin, roughness: 1, metalness: 0, alphaTest: 0.5 })
 
   let grupoJugador: THREE.Group | null = null
   const basura: (THREE.BufferGeometry | THREE.Material | THREE.Texture)[] = [matBase, matOverlay, texSkin]
@@ -185,7 +184,12 @@ export function crearEscena(contenedor: HTMLElement): Escena {
     tex.magFilter = THREE.NearestFilter
     tex.minFilter = THREE.NearestFilter
     tex.colorSpace = THREE.SRGBColorSpace
-    const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 1, metalness: 0, alphaTest: 0.5 })
+    // Doble cara: una pieza de armadura es una cáscara con huecos (el visor del
+    // casco, el hombro abierto...). Con una sola cara se vería el interior
+    // transparente al mirar desde abajo o desde dentro.
+    const mat = new THREE.MeshStandardMaterial({
+      map: tex, roughness: 1, metalness: 0, alphaTest: 0.5, side: THREE.DoubleSide,
+    })
 
     const { partes, inflado } = PIEZA_PARTES[pieza]
     const grupo = new THREE.Group()
@@ -253,6 +257,9 @@ export function crearEscena(contenedor: HTMLElement): Escena {
       escena.background = new THREE.Color(color)
     },
     captura() {
+      // La cámara la coloca el bucle, que el navegador suspende si la pestaña no
+      // está visible: se recoloca aquí para que la captura nunca salga vacía.
+      colocarCamara()
       render.render(escena, camara)
       return render.domElement.toDataURL('image/png')
     },

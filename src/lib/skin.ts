@@ -128,16 +128,91 @@ export async function skinDesdeArchivo(file: File): Promise<SkinCargada> {
   }
 }
 
-/**
- * Skin de un jugador por su nick. Resuelve contra la API de MineLite
- * (`/api/skin/usuario/<nick>`), que devuelve la textura servida desde el mismo
- * origen para que el canvas no quede contaminado y se pueda capturar.
- */
-export async function skinPorNick(nick: string): Promise<SkinCargada & { nombre: string }> {
-  const r = await fetch(`/api/skin/usuario/${encodeURIComponent(nick.trim())}`)
-  if (r.status === 404) throw new Error('No existe ningún jugador con ese nombre.')
-  if (!r.ok) throw new Error('No se pudo consultar la skin ahora mismo.')
+// ── Skin por nick ───────────────────────────────────────────────────────────
+// Mojang no manda cabeceras CORS, así que el nick hay que resolverlo por un
+// intermediario. Se intentan dos, en este orden:
+//
+//   1. `/api/skin/usuario/<nick>` de MineLite: mismo origen y cacheado en el
+//      edge, pero solo existe cuando la herramienta va embebida en la web.
+//   2. api.ashcon.app: proxy público de Mojang con CORS que además devuelve el
+//      PNG en base64 y si la skin es de brazos finos. Es lo que hace que el
+//      buscador funcione con el proyecto suelto (`npm run dev`).
+//
+// El PNG llega como data: URI o desde nuestro propio dominio: en los dos casos
+// el canvas queda limpio y la captura del modelo se puede exportar.
+
+const NICK_RE = /^[A-Za-z0-9_]{1,16}$/
+
+/** Error de «ese jugador no existe», que no tiene sentido reintentar. */
+class SinJugador extends Error {}
+
+/** null si la ruta no está desplegada (fuera de MineLite); se recuerda. */
+let hayApiMineLite: boolean | null = null
+
+function imagen(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const i = new Image()
+    i.onload = () => resolve(i)
+    i.onerror = () => reject(new Error('No se pudo descargar la skin.'))
+    i.src = src
+  })
+}
+
+async function porMineLite(nick: string): Promise<(SkinCargada & { nombre: string }) | null> {
+  if (hayApiMineLite === false) return null
+  let r: Response
+  try {
+    r = await fetch(`/api/skin/usuario/${encodeURIComponent(nick)}`)
+  } catch {
+    hayApiMineLite = false
+    return null
+  }
+  // Fuera de MineLite esa ruta no existe y el 404 es una página HTML, no la
+  // respuesta de la API: por eso se mira el tipo antes que el código.
+  if (!(r.headers.get('content-type') ?? '').includes('application/json')) {
+    hayApiMineLite = false
+    return null
+  }
+  hayApiMineLite = true
+  if (r.status === 404) throw new SinJugador()
+  if (!r.ok) return null
   const datos = (await r.json()) as { nombre: string; textura: string; slim: boolean }
-  const img = await cargarImagen(datos.textura)
-  return { canvas: a64(img), slim: datos.slim, nombre: datos.nombre }
+  return { canvas: a64(await cargarImagen(datos.textura)), slim: datos.slim, nombre: datos.nombre }
+}
+
+async function porAshcon(nick: string): Promise<SkinCargada & { nombre: string }> {
+  let r: Response
+  try {
+    r = await fetch(`https://api.ashcon.app/mojang/v2/user/${encodeURIComponent(nick)}`)
+  } catch {
+    throw new Error('Sin conexión con el servicio de skins. Puedes subir el PNG a mano.')
+  }
+  if (r.status === 404 || r.status === 400) throw new SinJugador()
+  if (!r.ok) throw new Error('El servicio de skins no responde. Inténtalo en un rato o sube el PNG.')
+
+  const datos = (await r.json()) as {
+    username?: string
+    textures?: { slim?: boolean; skin?: { data?: string } }
+  }
+  const base64 = datos.textures?.skin?.data
+  if (!base64) throw new Error('Ese jugador no tiene skin propia.')
+  return {
+    canvas: a64(await imagen(`data:image/png;base64,${base64}`)),
+    slim: !!datos.textures?.slim,
+    nombre: datos.username ?? nick,
+  }
+}
+
+/** Skin de un jugador de Minecraft por su nombre. */
+export async function skinPorNick(nick: string): Promise<SkinCargada & { nombre: string }> {
+  const limpio = nick.trim()
+  if (!NICK_RE.test(limpio)) {
+    throw new Error('Un nick de Minecraft son 1-16 caracteres: letras, números o guion bajo.')
+  }
+  try {
+    return (await porMineLite(limpio)) ?? (await porAshcon(limpio))
+  } catch (e) {
+    if (e instanceof SinJugador) throw new Error(`No existe ningún jugador llamado «${limpio}».`)
+    throw e
+  }
 }

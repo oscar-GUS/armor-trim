@@ -1,4 +1,4 @@
-import { Fragment, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   MATERIALES, NOMBRE_PIEZA, PATRONES, PIEZAS, TINTES, TRIM_MATERIALES, type Pieza,
 } from '../data/generated'
@@ -40,8 +40,27 @@ export default function Rejilla({
   onCambio: (fila: Fila, columna: Columna, valor: string | null) => void
 }) {
   const [abierto, setAbierto] = useState<{ fila: Fila; columna: Columna } | null>(null)
+  const listado = useRef<HTMLDivElement>(null)
 
   const filas: Fila[] = ['todas', ...PIEZAS]
+
+  // El menú se cierra al pulsar fuera de la rejilla o con Escape. Los clics en
+  // otra celda no entran aquí: los recoge su propio onClick, que lo cambia.
+  useEffect(() => {
+    if (!abierto) return
+    const fuera = (e: PointerEvent) => {
+      if (!listado.current?.contains(e.target as Node)) setAbierto(null)
+    }
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setAbierto(null)
+    }
+    document.addEventListener('pointerdown', fuera)
+    document.addEventListener('keydown', tecla)
+    return () => {
+      document.removeEventListener('pointerdown', fuera)
+      document.removeEventListener('keydown', tecla)
+    }
+  }, [abierto])
 
   // La columna de tinte solo existe si hay cuero puesto: es la única armadura
   // que se tiñe, y si no hay ninguna la columna entera son cuadros vacíos que
@@ -60,9 +79,9 @@ export default function Rejilla({
         ))}
       </div>
 
-      <div className="flex flex-col gap-2">
-        {filas.map((fila) => (
-          <Fragment key={fila}>
+      <div ref={listado} className="flex flex-col gap-2">
+        {filas.map((fila, i) => (
+          <div key={fila} className="relative">
             <FilaArmadura
               fila={fila}
               estado={estado}
@@ -73,19 +92,28 @@ export default function Rejilla({
               }
             />
             {abierto?.fila === fila && (
-              <Selector
-                fila={fila}
-                columna={abierto.columna}
-                estado={estado}
-                onElegir={(valor) => {
-                  onCambio(fila, abierto.columna, valor)
-                  setAbierto(null)
-                }}
-                onCerrar={() => setAbierto(null)}
-              />
+              // Superpuesto, no empuja la rejilla. Las dos últimas filas lo abren
+              // hacia arriba para no salirse por abajo de la tarjeta.
+              <div
+                className={[
+                  'absolute left-0 right-0 z-30 drop-shadow-[0_12px_24px_rgba(0,0,0,0.65)]',
+                  i >= filas.length - 2 ? 'bottom-full mb-1.5' : 'top-full mt-1.5',
+                ].join(' ')}
+              >
+                <Selector
+                  fila={fila}
+                  columna={abierto.columna}
+                  estado={estado}
+                  onElegir={(valor) => {
+                    onCambio(fila, abierto.columna, valor)
+                    setAbierto(null)
+                  }}
+                  onCerrar={() => setAbierto(null)}
+                />
+              </div>
             )}
-            {fila === 'todas' && <div className="h-px bg-[#2A2A2E] my-1" />}
-          </Fragment>
+            {fila === 'todas' && <div className="h-px bg-[#2A2A2E] mt-2" />}
+          </div>
         ))}
       </div>
     </div>

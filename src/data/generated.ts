@@ -64,9 +64,7 @@ export const MATERIALES: MaterialArmadura[] = [
       "boots"
     ],
     "colorBase": null,
-    "paletasOscuras": {
-      "copper": "copper_darker"
-    }
+    "paletasOscuras": {}
   },
   {
     "id": "iron",
@@ -80,9 +78,7 @@ export const MATERIALES: MaterialArmadura[] = [
       "boots"
     ],
     "colorBase": null,
-    "paletasOscuras": {
-      "iron": "iron_darker"
-    }
+    "paletasOscuras": {}
   },
   {
     "id": "golden",
@@ -96,9 +92,7 @@ export const MATERIALES: MaterialArmadura[] = [
       "boots"
     ],
     "colorBase": null,
-    "paletasOscuras": {
-      "gold": "gold_darker"
-    }
+    "paletasOscuras": {}
   },
   {
     "id": "diamond",
@@ -112,9 +106,7 @@ export const MATERIALES: MaterialArmadura[] = [
       "boots"
     ],
     "colorBase": null,
-    "paletasOscuras": {
-      "diamond": "diamond_darker"
-    }
+    "paletasOscuras": {}
   },
   {
     "id": "netherite",
@@ -128,9 +120,7 @@ export const MATERIALES: MaterialArmadura[] = [
       "boots"
     ],
     "colorBase": null,
-    "paletasOscuras": {
-      "netherite": "netherite_darker"
-    }
+    "paletasOscuras": {}
   },
   {
     "id": "turtle",

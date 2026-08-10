@@ -51,6 +51,30 @@ const TRIM_MATERIALES = [
   { id: 'resin',     item: 'resin_brick' },
 ]
 
+// Material con el que se duplica cada plantilla en la mesa de trabajo (7
+// diamantes + 1 de esto + la plantilla = 2 plantillas). Sale de las recetas del
+// juego; la textura la usa la guía de la página de MineLite.
+const DUPLICACION = {
+  bolt: 'block/copper_block',
+  coast: 'block/cobblestone',
+  dune: 'block/sandstone',
+  eye: 'block/end_stone',
+  flow: 'item/breeze_rod',
+  host: 'block/terracotta',
+  raiser: 'block/terracotta',
+  rib: 'block/netherrack',
+  sentry: 'block/cobblestone',
+  shaper: 'block/terracotta',
+  silence: 'block/cobbled_deepslate',
+  snout: 'block/blackstone',
+  spire: 'block/purpur_block',
+  tide: 'block/prismarine',
+  vex: 'block/cobblestone',
+  ward: 'block/cobbled_deepslate',
+  wayfinder: 'block/terracotta',
+  wild: 'block/mossy_cobblestone',
+}
+
 // Skins por defecto de Minecraft, cada una en su variante canónica.
 const SKINS = [
   { id: 'steve', nombre: 'Steve', slim: false },
@@ -153,6 +177,9 @@ for (const p of PATRONES) {
 for (const t of TRIM_MATERIALES) push(`${ASSETS}/textures/item/${t.item}.png`, `items/${t.item}.png`)
 for (const s of SKINS) {
   push(`${ASSETS}/textures/entity/player/${s.slim ? 'slim' : 'wide'}/${s.id}.png`, `skins/${s.id}.png`)
+}
+for (const ruta of new Set(Object.values(DUPLICACION))) {
+  push(`${ASSETS}/textures/${ruta}.png`, `duplicacion/${ruta.split('/')[1]}.png`)
 }
 for (const d of TINTES) push(`${ASSETS}/textures/item/${d}_dye.png`, `items/${d}_dye.png`)
 
