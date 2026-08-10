@@ -43,11 +43,17 @@ export default function Rejilla({
 
   const filas: Fila[] = ['todas', ...PIEZAS]
 
+  // La columna de tinte solo existe si hay cuero puesto: es la única armadura
+  // que se tiñe, y si no hay ninguna la columna entera son cuadros vacíos que
+  // solo confunden.
+  const hayCuero = PIEZAS.some((p) => material(estado[p].material).colorBase !== null)
+  const columnas = (Object.keys(TITULO) as Columna[]).filter((c) => c !== 'tinte' || hayCuero)
+
   return (
     <div className="rounded-2xl border border-[#2A2A2E] bg-[#161618] p-3 sm:p-4">
       {/* Cabecera de columnas */}
       <div className="flex items-center gap-2 pb-2 pl-[4.25rem] pr-1">
-        {(Object.keys(TITULO) as Columna[]).map((c) => (
+        {columnas.map((c) => (
           <div key={c} className="flex-1 text-center text-[10px] font-semibold uppercase tracking-wider text-[#71717A]">
             {TITULO[c]}
           </div>
@@ -60,6 +66,7 @@ export default function Rejilla({
             <FilaArmadura
               fila={fila}
               estado={estado}
+              hayCuero={hayCuero}
               abierto={abierto}
               onAbrir={(columna) =>
                 setAbierto((a) => (a && a.fila === fila && a.columna === columna ? null : { fila, columna }))
@@ -86,10 +93,11 @@ export default function Rejilla({
 }
 
 function FilaArmadura({
-  fila, estado, abierto, onAbrir,
+  fila, estado, hayCuero, abierto, onAbrir,
 }: {
   fila: Fila
   estado: Estado
+  hayCuero: boolean
   abierto: { fila: Fila; columna: Columna } | null
   onAbrir: (c: Columna) => void
 }) {
@@ -124,16 +132,18 @@ function FilaArmadura({
           : <Vacio titulo="Este material no tiene esta pieza" />}
       </Celda>
 
-      <Celda
-        activa={abierto?.columna === 'tinte' && abierto.fila === fila}
-        titulo={esCuero ? (cfg.tinte ? TINTE_CORTO[cfg.tinte] : 'Sin teñir') : 'Solo se puede teñir el cuero'}
-        deshabilitada={!esCuero}
-        onClick={() => onAbrir('tinte')}
-      >
-        {mezcla('tinte') ? <Mixto /> : cfg.tinte
-          ? <IconoItem ruta={`items/${cfg.tinte}_dye.png`} alt={TINTE_CORTO[cfg.tinte]} />
-          : <Vacio />}
-      </Celda>
+      {hayCuero && (
+        <Celda
+          activa={abierto?.columna === 'tinte' && abierto.fila === fila}
+          titulo={esCuero ? (cfg.tinte ? TINTE_CORTO[cfg.tinte] : 'Sin teñir') : 'Solo se puede teñir el cuero'}
+          deshabilitada={!esCuero}
+          onClick={() => onAbrir('tinte')}
+        >
+          {mezcla('tinte') ? <Mixto /> : cfg.tinte
+            ? <IconoItem ruta={`items/${cfg.tinte}_dye.png`} alt={TINTE_CORTO[cfg.tinte]} />
+            : <Vacio />}
+        </Celda>
+      )}
 
       <Celda
         activa={abierto?.columna === 'patron' && abierto.fila === fila}

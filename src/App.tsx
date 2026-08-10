@@ -2,10 +2,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import Rejilla, { CAMPO, type Columna, type Fila } from './components/Rejilla'
 import Visor from './components/Visor'
 import { PIEZAS } from './data/generated'
-import { admite, aURL, comandos, desdeURL, estadoInicial, type Estado } from './lib/armadura'
+import { admite, aURL, comandos, desdeURL, estadoInicial, material, type Estado } from './lib/armadura'
 import type { Escena } from './lib/escena'
-
-const DISCORD = 'https://discord.gg/hmKpBDrMju'
 
 function estadoDeLaURL(): Estado {
   const cod = new URLSearchParams(window.location.search).get('trim')
@@ -14,7 +12,7 @@ function estadoDeLaURL(): Estado {
 
 export default function App() {
   const [estado, setEstado] = useState<Estado>(estadoDeLaURL)
-  const [copiado, setCopiado] = useState<'enlace' | 'comando' | null>(null)
+  const [copiado, setCopiado] = useState<'comando' | null>(null)
   const [verComando, setVerComando] = useState(false)
   const escenaRef = useRef<Escena | null>(null)
 
@@ -36,6 +34,12 @@ export default function App() {
         // Un material que no tiene esa pieza (el caparazón solo es casco) se ignora.
         if (columna === 'material' && valor && !admite(valor, pieza)) continue
         sig[pieza] = { ...sig[pieza], [CAMPO[columna]]: valor }
+        // Solo el cuero se tiñe: al cambiar a otro material, el tinte se va con
+        // él. Si no, se quedaba el icono del tinte puesto en una armadura de
+        // hierro, que no significa nada.
+        if (columna === 'material' && valor && !material(valor).colorBase) {
+          sig[pieza] = { ...sig[pieza], tinte: null }
+        }
       }
       return sig
     })
@@ -50,23 +54,12 @@ export default function App() {
     a.click()
   }
 
-  async function copiar(texto: string, que: 'enlace' | 'comando') {
+  async function copiar(texto: string, que: 'comando') {
     try {
       await navigator.clipboard.writeText(texto)
       setCopiado(que)
     } catch {
       /* sin portapapeles: el usuario puede copiar a mano */
-    }
-  }
-
-  /** Enlace a la página que embebe la herramienta, con el diseño codificado. */
-  function enlace(): string {
-    const cod = aURL(estado)
-    try {
-      const p = window.parent !== window ? window.parent.location : window.location
-      return `${p.origin}${p.pathname}?trim=${cod}`
-    } catch {
-      return `${window.location.origin}${window.location.pathname}?trim=${cod}`
     }
   }
 
@@ -77,21 +70,23 @@ export default function App() {
       <div className="flex flex-col gap-3 min-h-0 lg:overflow-y-auto scroll-fino">
         <Rejilla estado={estado} onCambio={cambiar} />
 
+        {/* Dos acciones y ya: hacer la foto y llevarse los comandos. El enlace
+            compartido sigue estando en la barra del navegador (el estado vive en
+            la URL), y el Discord ya está en el resto de la web. */}
         <div className="rounded-2xl border border-[#2A2A2E] bg-[#161618] p-3 flex flex-col gap-2">
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <Accion onClick={capturar} icono={<IconoCaptura />}>Capturar</Accion>
-            <Accion onClick={() => copiar(enlace(), 'enlace')} icono={<IconoCompartir />}>
-              {copiado === 'enlace' ? '¡Copiado!' : 'Compartir'}
+            <Accion onClick={() => copiar(comandos(estado), 'comando')} icono={<IconoComando />}>
+              {copiado === 'comando' ? '¡Copiado!' : 'Comando'}
             </Accion>
-            <Accion href={DISCORD} icono={<IconoDiscord />}>Discord</Accion>
           </div>
 
           <button
             type="button"
             onClick={() => setVerComando((v) => !v)}
-            className="text-xs font-semibold text-[#A1A1AA] hover:text-[#F4811F] py-1.5 transition-colors text-left"
+            className="text-[11px] font-semibold text-[#52525B] hover:text-[#A1A1AA] py-1 transition-colors text-left"
           >
-            {verComando ? '▾' : '▸'} Comando /give
+            {verComando ? '▾' : '▸'} Ver el comando
           </button>
 
           {verComando && (
@@ -99,13 +94,6 @@ export default function App() {
               <pre className="text-[10px] leading-relaxed text-[#A1A1AA] bg-[#111113] border border-[#2A2A2E] rounded-lg p-2.5 overflow-x-auto scroll-fino whitespace-pre">
                 {comandos(estado)}
               </pre>
-              <button
-                type="button"
-                onClick={() => copiar(comandos(estado), 'comando')}
-                className="text-xs font-semibold py-2 rounded-lg bg-[#1C1C1F] border border-[#2A2A2E] text-[#A1A1AA] hover:border-[rgba(244,129,31,0.5)] transition-colors"
-              >
-                {copiado === 'comando' ? '¡Copiado!' : 'Copiar los 4 comandos'}
-              </button>
               <p className="text-[11px] text-[#52525B]">
                 Sintaxis de componentes (Minecraft 1.21.5 o superior).
               </p>
@@ -145,17 +133,9 @@ const IconoCaptura = () => (
   </svg>
 )
 
-const IconoCompartir = () => (
+const IconoComando = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full">
-    <circle cx="18" cy="5" r="3" />
-    <circle cx="6" cy="12" r="3" />
-    <circle cx="18" cy="19" r="3" />
-    <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
-  </svg>
-)
-
-const IconoDiscord = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full">
-    <path d="M19.3 5.6A16 16 0 0015.4 4.4l-.2.4a12 12 0 013.3 1.7 11 11 0 00-9-.4l-.6.4a12 12 0 013.4-1.7l-.3-.4a16 16 0 00-3.9 1.2C3.7 9.4 3 13 3.3 16.6a16 16 0 004.8 2.4l.6-1a11 11 0 01-1.8-.9l.4-.3a11 11 0 009.4 0l.4.3a11 11 0 01-1.8.9l.6 1a16 16 0 004.8-2.4c.4-4.2-.6-7.8-2.4-11zM9.5 14.5c-.9 0-1.7-.9-1.7-1.9s.8-1.9 1.7-1.9 1.7.8 1.7 1.9-.8 1.9-1.7 1.9zm5 0c-.9 0-1.7-.9-1.7-1.9s.8-1.9 1.7-1.9 1.7.8 1.7 1.9-.8 1.9-1.7 1.9z" />
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M7 9l3 3-3 3M13 15h4" />
   </svg>
 )

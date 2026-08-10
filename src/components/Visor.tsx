@@ -12,7 +12,19 @@ const MODOS: { id: ModoCamara; nombre: string }[] = [
   { id: 'espalda', nombre: 'De espaldas' },
 ]
 
-const FONDOS = ['#7FC3F5', '#0D0D0F', '#F5F5F0', '#1B4332', '#2E1065', '#F4811F']
+// Paleta de MineLite. El primero es el fondo por defecto: un gris de la casa,
+// lo bastante claro para que la netherita no se funda con él y lo bastante
+// apagado para no competir con la armadura.
+const FONDOS = ['#26262B', '#0D0D0F', '#3A3A40', '#F4811F', '#F5F5F0', '#7FC3F5']
+
+const NOMBRE_FONDO: Record<string, string> = {
+  '#26262B': 'Grafito',
+  '#0D0D0F': 'Noche',
+  '#3A3A40': 'Piedra',
+  '#F4811F': 'Naranja MineLite',
+  '#F5F5F0': 'Hueso',
+  '#7FC3F5': 'Cielo',
+}
 
 export default function Visor({
   estado,
@@ -73,7 +85,9 @@ export default function Visor({
   }, [estado, escenaRef])
 
   return (
-    <div className="flex flex-col gap-3 min-h-0">
+    // La tarjeta del visor no se estira a lo ancho de la pantalla: un muñeco de
+    // dos metros en un lienzo de mil píxeles se queda diminuto en el centro.
+    <div className="flex flex-col gap-3 min-h-0 w-full max-w-[560px] mx-auto">
       <div
         ref={contenedor}
         className="relative flex-1 min-h-[320px] rounded-2xl border border-[#2A2A2E] overflow-hidden bg-[#0D0D0F] cursor-grab active:cursor-grabbing"
@@ -141,7 +155,8 @@ function PanelCamara({
               key={c}
               type="button"
               onClick={() => setFondo(c)}
-              aria-label={`Fondo ${c}`}
+              aria-label={`Fondo ${NOMBRE_FONDO[c] ?? c}`}
+              title={NOMBRE_FONDO[c] ?? c}
               style={{ background: c }}
               className={`w-6 h-6 rounded-md border ${fondo === c ? 'border-[#F4811F]' : 'border-[#3A3A40]'}`}
             />
