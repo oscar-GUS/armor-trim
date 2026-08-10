@@ -193,6 +193,8 @@ console.log('Leyendo equipment/, trim_material/ y lang/es_es.json...')
 const lang = await json(`${ASSETS}/lang/es_es.json`)
 const es = (k, fallback) => lang[k] ?? fallback
 
+const pelado = (id) => id.replace('minecraft:', '').replace('trim/', '')
+
 const materiales = []
 for (const m of MATERIALES) {
   const eq = await json(`${ASSETS}/equipment/${m.equipment}.json`)
@@ -206,13 +208,18 @@ for (const m of MATERIALES) {
     piezas: m.piezas,
     // El color base del cuero sin teñir viene firmado (ARGB) en el JSON vanilla.
     colorBase: undyed == null ? null : '#' + ((undyed >>> 0) & 0xffffff).toString(16).padStart(6, '0').toUpperCase(),
-    // { 'minecraft:trim/iron': 'minecraft:trim/iron_darker' } → { iron: 'iron_darker' }
-    paletasOscuras: Object.fromEntries(
-      Object.entries(eq.trim_palette_replacements ?? {}).map(([k, v]) => [
-        k.replace('minecraft:trim/', ''),
-        v.replace('minecraft:trim/', ''),
-      ]),
-    ),
+    // Paleta alternativa cuando el trim es del mismo material que la armadura
+    // (oro sobre oro se ve más oscuro). Formato actual:
+    //   trim_overrides: [{ palette: 'minecraft:trim/iron_darker', when: { material: 'minecraft:iron' } }]
+    // y el de antes de 1.21.9, por si se fija una versión vieja:
+    //   trim_palette_replacements: { 'minecraft:trim/iron': 'minecraft:trim/iron_darker' }
+    // En los dos casos queda { iron: 'iron_darker' }.
+    paletasOscuras: Object.fromEntries([
+      ...(eq.trim_overrides ?? [])
+        .filter((o) => o.when?.material && o.palette)
+        .map((o) => [pelado(o.when.material), pelado(o.palette)]),
+      ...Object.entries(eq.trim_palette_replacements ?? {}).map(([k, v]) => [pelado(k), pelado(v)]),
+    ]),
   })
 }
 
