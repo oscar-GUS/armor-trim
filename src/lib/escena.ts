@@ -26,9 +26,10 @@ function ponerUV(uv: THREE.BufferAttribute, cara: number, r: { x: number; y: num
   uv.setXY(i + 3, x1, y1)
 }
 
-function caja(parte: Parte, caras: Caras, inflado: number, tw: number, th: number): THREE.BoxGeometry {
+function caja(parte: Parte, caras: Caras, inflado: number, tw: number, th: number, recorteInferior = 0): THREE.BoxGeometry {
   const [w, h, d] = parte.size
-  const g = new THREE.BoxGeometry(w + inflado * 2, h + inflado * 2, d + inflado * 2)
+  const g = new THREE.BoxGeometry(w + inflado * 2, h + inflado * 2 - recorteInferior, d + inflado * 2)
+  if (recorteInferior) g.translate(0, recorteInferior / 2, 0)
   const uv = g.attributes.uv as THREE.BufferAttribute
   const orden = parte.espejo ? CARAS_ESPEJO : CARAS
   orden.forEach((k, i) => ponerUV(uv, i, caras[k], tw, th, !!parte.espejo))
@@ -37,8 +38,12 @@ function caja(parte: Parte, caras: Caras, inflado: number, tw: number, th: numbe
 }
 
 // Partes que dibuja cada pieza y cuánto se infla, como en el juego.
-const PIEZA_PARTES: Record<Pieza, { partes: string[]; inflado: number }> = {
-  helmet:     { partes: ['head'], inflado: 1 },
+//
+// El casco lleva además `recorteInferior`: se infla hacia arriba y a los lados,
+// pero no por debajo, para que la cáscara se apoye en la base de la cabeza en
+// vez de bajarle una unidad por detrás del cuello.
+const PIEZA_PARTES: Record<Pieza, { partes: string[]; inflado: number; recorteInferior?: number }> = {
+  helmet:     { partes: ['head'], inflado: 1, recorteInferior: 1 },
   chestplate: { partes: ['body', 'rightArm', 'leftArm'], inflado: 1 },
   leggings:   { partes: ['body', 'rightLeg', 'leftLeg'], inflado: 0.5 },
   boots:      { partes: ['rightLeg', 'leftLeg'], inflado: 1 },
@@ -62,7 +67,11 @@ export function crearEscena(contenedor: HTMLElement): Escena {
   escena.background = new THREE.Color('#7FC3F5')
 
   const camara = new THREE.PerspectiveCamera(38, 1, 0.1, 500)
-  const objetivo = new THREE.Vector3(0, 17, 0)
+  // Con la armadura puesta el muñeco va de y=-1 (suela de las botas) a y=33
+  // (cresta del casco): el centro está en 16, no en 17.
+  // (16.4 y no 16: la cámara mira un pelo desde arriba y eso sube el muñeco en
+  // el encuadre; con esto los márgenes de arriba y abajo quedan parejos.)
+  const objetivo = new THREE.Vector3(0, 16.4, 0)
 
   const render = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })
   render.setPixelRatio(Math.min(2, window.devicePixelRatio))
@@ -88,7 +97,9 @@ export function crearEscena(contenedor: HTMLElement): Escena {
   let thetaBase = 0
   let thetaAuto = 0
   let phi = Math.PI / 2 - 0.12
-  let radio = 52
+  // 34 unidades de muñeco en 41 de encuadre: entra entero con aire arriba y
+  // abajo en vez de rozar los bordes.
+  let radio = 60
 
   function colocarCamara() {
     const t = thetaBase + thetaAuto
@@ -165,7 +176,31 @@ export function crearEscena(contenedor: HTMLElement): Escena {
     grupoJugador = g
   }
 
-  const armaduras = new Map<Pieza, { grupo: THREE.Group; material: THREE.MeshStandardMaterial; textura: THREE.CanvasTexture }>()
+  /**
+   * Color del forro: la media de la textura, oscurecida. La armadura queda una
+   * unidad separada del cuerpo, así que por los huecos de la textura (la cara
+   * del casco, el cuello del peto) se cuela la vista por el anillo que queda
+   * entre medias, y por las esquinas se veía el fondo de lado a lado. El forro
+   * tapa ese anillo con el interior de la propia pieza.
+   */
+  function colorForro(textura: HTMLCanvasElement): THREE.Color {
+    const d = textura.getContext('2d', { willReadFrequently: true })!.getImageData(0, 0, textura.width, textura.height).data
+    let r = 0, g = 0, b = 0, n = 0
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] < 128) continue
+      r += d[i]; g += d[i + 1]; b += d[i + 2]; n++
+    }
+    if (!n) return new THREE.Color(0x101010)
+    const k = 0.32 / 255
+    return new THREE.Color(r * k / n, g * k / n, b * k / n)
+  }
+
+  const armaduras = new Map<Pieza, {
+    grupo: THREE.Group
+    material: THREE.MeshStandardMaterial
+    forro: THREE.MeshBasicMaterial
+    textura: THREE.CanvasTexture
+  }>()
 
   function setArmadura(pieza: Pieza, textura: HTMLCanvasElement | null) {
     const previo = armaduras.get(pieza)
@@ -175,6 +210,7 @@ export function crearEscena(contenedor: HTMLElement): Escena {
         if (o instanceof THREE.Mesh) o.geometry.dispose()
       })
       previo.material.dispose()
+      previo.forro.dispose()
       previo.textura.dispose()
       armaduras.delete(pieza)
     }
@@ -191,16 +227,26 @@ export function crearEscena(contenedor: HTMLElement): Escena {
       map: tex, roughness: 1, metalness: 0, alphaTest: 0.5, side: THREE.DoubleSide,
     })
 
-    const { partes, inflado } = PIEZA_PARTES[pieza]
+    const forro = new THREE.MeshBasicMaterial({ color: colorForro(textura), side: THREE.BackSide })
+
+    const { partes, inflado, recorteInferior } = PIEZA_PARTES[pieza]
     const grupo = new THREE.Group()
     for (const parte of partesArmadura()) {
       if (!partes.includes(parte.nombre)) continue
-      const malla = new THREE.Mesh(caja(parte, parte.base, inflado + (EPSILON[parte.nombre] ?? 0), 64, 32), mat)
+      const geo = caja(parte, parte.base, inflado + (EPSILON[parte.nombre] ?? 0), 64, 32, recorteInferior)
+      const malla = new THREE.Mesh(geo, mat)
       malla.position.set(...parte.pos)
       grupo.add(malla)
+
+      // Cara interna lisa, un pelo por dentro de la cáscara para no pelearse
+      // con ella en el z-buffer. Solo se ve por los huecos de la textura, y
+      // siempre por detrás del cuerpo, que va más cerca de la cámara.
+      const dentro = new THREE.Mesh(caja(parte, parte.base, inflado - 0.02 + (EPSILON[parte.nombre] ?? 0), 64, 32, recorteInferior), forro)
+      dentro.position.set(...parte.pos)
+      grupo.add(dentro)
     }
     raiz.add(grupo)
-    armaduras.set(pieza, { grupo, material: mat, textura: tex })
+    armaduras.set(pieza, { grupo, material: mat, forro, textura: tex })
   }
 
   // ── Bucle ─────────────────────────────────────────────────────────────────
@@ -273,6 +319,7 @@ export function crearEscena(contenedor: HTMLElement): Escena {
       lienzo.removeEventListener('wheel', onWheel)
       for (const a of armaduras.values()) {
         a.material.dispose()
+        a.forro.dispose()
         a.textura.dispose()
       }
       escena.traverse((o) => {

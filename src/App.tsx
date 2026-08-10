@@ -64,7 +64,9 @@ export default function App() {
   }
 
   return (
-    <div className="h-full w-full p-3 sm:p-4 grid gap-3 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_390px] lg:h-full overflow-y-auto lg:overflow-hidden scroll-fino">
+    // Ancho máximo y centrado: en un monitor ancho las dos columnas se iban a
+    // los extremos y quedaba medio kilómetro de vacío en medio.
+    <div className="h-full w-full mx-auto max-w-[1010px] p-3 sm:p-4 grid gap-3 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_384px] lg:h-full overflow-y-auto lg:overflow-hidden scroll-fino">
       <Visor estado={estado} escenaRef={escenaRef} />
 
       <div className="flex flex-col gap-3 min-h-0 lg:overflow-y-auto scroll-fino">

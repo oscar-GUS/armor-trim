@@ -70,10 +70,15 @@ export default function Rejilla({
 
   return (
     <div className="rounded-2xl border border-[#2A2A2E] bg-[#161618] p-3 sm:p-4">
-      {/* Cabecera de columnas */}
-      <div className="flex items-center gap-2 pb-2 pl-[4.25rem] pr-1">
+      {/* Cabecera de columnas: mismas medidas que las celdas para que cada
+          título caiga justo encima de su columna. */}
+      <div className="flex items-center gap-2 pb-2">
+        <div className="w-[4.25rem] shrink-0" />
         {columnas.map((c) => (
-          <div key={c} className="flex-1 text-center text-[10px] font-semibold uppercase tracking-wider text-[#71717A]">
+          <div
+            key={c}
+            className="flex-1 max-w-[60px] text-center text-[10px] font-semibold uppercase tracking-wider text-[#71717A]"
+          >
             {TITULO[c]}
           </div>
         ))}
