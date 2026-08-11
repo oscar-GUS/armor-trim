@@ -6,7 +6,7 @@ import { RUTA, apilar, cargarImagen, tenido, trimRecoloreado } from './imagenes'
 export type { Pieza }
 
 export interface Config {
-  material: string           // id de MATERIALES
+  material: string | null    // id de MATERIALES, o null si esa pieza no se lleva
   tinte: string | null       // id de TINTES (solo cuero)
   patron: string | null      // id de PATRONES
   trim: string | null        // id de TRIM_MATERIALES
@@ -14,7 +14,7 @@ export interface Config {
 
 export type Estado = Record<Pieza, Config>
 
-export const material = (id: string) => MATERIALES.find((m) => m.id === id) ?? MATERIALES[0]
+export const material = (id: string | null) => MATERIALES.find((m) => m.id === id) ?? null
 export const tinte = (id: string | null) => TINTES.find((t) => t.id === id) ?? null
 export const patron = (id: string | null) => PATRONES.find((p) => p.id === id) ?? null
 export const trimMaterial = (id: string | null) => TRIM_MATERIALES.find((t) => t.id === id) ?? null
@@ -30,14 +30,15 @@ export function estadoInicial(): Estado {
   }
 }
 
-/** Piezas que ese material puede llevar (el caparazón solo es casco). */
-export const admite = (idMaterial: string, pieza: Pieza) => material(idMaterial).piezas.includes(pieza)
+/** Si esa pieza se lleva puesta y el material la tiene (el caparazón solo es casco). */
+export const admite = (idMaterial: string | null, pieza: Pieza) =>
+  !!material(idMaterial)?.piezas.includes(pieza)
 
 const capaDe = (pieza: Pieza) => (pieza === 'leggings' ? 'humanoid_leggings' : 'humanoid')
 
 /** Paleta con la que se pinta el trim: la oscura si choca con el material de la armadura. */
-function paletaTrim(idMaterial: string, idTrim: string): string {
-  return material(idMaterial).paletasOscuras[idTrim] ?? idTrim
+function paletaTrim(idMaterial: string | null, idTrim: string): string {
+  return material(idMaterial)?.paletasOscuras[idTrim] ?? idTrim
 }
 
 // ── Textura del modelo 3D (64×32, layout legado) ────────────────────────────
@@ -46,12 +47,13 @@ const texCache = new Map<string, Promise<HTMLCanvasElement>>()
 const claveTextura = (pieza: Pieza, c: Config) =>
   `${pieza}|${c.material}|${c.tinte ?? '-'}|${c.patron ?? '-'}|${c.trim ?? '-'}`
 
+/** Textura de la pieza puesta. Solo se llama con `admite(...)` en verdadero. */
 export function texturaArmadura(pieza: Pieza, cfg: Config): Promise<HTMLCanvasElement> {
   const clave = claveTextura(pieza, cfg)
   let p = texCache.get(clave)
   if (!p) {
     p = (async () => {
-      const m = material(cfg.material)
+      const m = material(cfg.material)!
       const capa = capaDe(pieza)
       const capas: CanvasImageSource[] = []
 
@@ -83,7 +85,7 @@ export function iconoArmadura(pieza: Pieza, cfg: Config): Promise<string> {
   let p = iconoCache.get(clave)
   if (!p) {
     p = (async () => {
-      const m = material(cfg.material)
+      const m = material(cfg.material)!
       const capas: CanvasImageSource[] = []
 
       if (m.colorBase) {
@@ -105,7 +107,7 @@ export function iconoArmadura(pieza: Pieza, cfg: Config): Promise<string> {
 }
 
 // ── Comando ─────────────────────────────────────────────────────────────────
-export const itemDe = (cfg: Config, pieza: Pieza) => `${material(cfg.material).item}_${pieza}`
+export const itemDe = (cfg: Config, pieza: Pieza) => `${material(cfg.material)!.item}_${pieza}`
 
 /** Comando /give de una pieza (sintaxis de componentes, 1.21.5+). */
 export function comando(pieza: Pieza, cfg: Config): string {
@@ -114,21 +116,23 @@ export function comando(pieza: Pieza, cfg: Config): string {
     comps.push(`trim={pattern:"minecraft:${cfg.patron}",material:"minecraft:${cfg.trim}"}`)
   }
   const t = tinte(cfg.tinte)
-  if (t && material(cfg.material).colorBase) {
+  if (t && material(cfg.material)?.colorBase) {
     comps.push(`dyed_color=${parseInt(t.color.slice(1), 16)}`)
   }
   const sufijo = comps.length ? `[${comps.join(',')}]` : ''
   return `/give @p minecraft:${itemDe(cfg, pieza)}${sufijo}`
 }
 
-export const comandos = (estado: Estado) =>
-  PIEZAS.filter((p) => admite(estado[p].material, p))
-    .map((p) => comando(p, estado[p]))
-    .join('\n')
+export const comandos = (estado: Estado) => {
+  const puestas = PIEZAS.filter((p) => admite(estado[p].material, p))
+  return puestas.length
+    ? puestas.map((p) => comando(p, estado[p])).join('\n')
+    : '# No llevas ninguna pieza puesta.'
+}
 
 // ── Estado en la URL ────────────────────────────────────────────────────────
 // Formato compacto: material.tinte.patron.trim por pieza, separado por «_».
-const cod = (c: Config) => [c.material, c.tinte ?? '', c.patron ?? '', c.trim ?? ''].join('.')
+const cod = (c: Config) => [c.material ?? '', c.tinte ?? '', c.patron ?? '', c.trim ?? ''].join('.')
 
 export function aURL(estado: Estado): string {
   return PIEZAS.map((p) => cod(estado[p])).join('_')
@@ -140,10 +144,11 @@ export function desdeURL(s: string): Estado | null {
   const estado = estadoInicial()
   for (let i = 0; i < PIEZAS.length; i++) {
     const [mat, tin, pat, tri] = partes[i].split('.')
-    if (!MATERIALES.some((m) => m.id === mat)) return null
+    if (mat && !MATERIALES.some((m) => m.id === mat)) return null
     estado[PIEZAS[i]] = {
-      // Un enlace manipulado podría pedir una pieza que ese material no tiene.
-      material: admite(mat, PIEZAS[i]) ? mat : CONFIG_INICIAL.material,
+      // Vacío = pieza quitada. Un enlace manipulado podría pedir además una
+      // pieza que ese material no tiene (grebas de caparazón).
+      material: admite(mat, PIEZAS[i]) ? mat : null,
       tinte: TINTES.some((t) => t.id === tin) ? tin : null,
       patron: PATRONES.some((p) => p.id === pat) ? pat : null,
       trim: TRIM_MATERIALES.some((t) => t.id === tri) ? tri : null,

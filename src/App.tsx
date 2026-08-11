@@ -34,10 +34,10 @@ export default function App() {
         // Un material que no tiene esa pieza (el caparazón solo es casco) se ignora.
         if (columna === 'material' && valor && !admite(valor, pieza)) continue
         sig[pieza] = { ...sig[pieza], [CAMPO[columna]]: valor }
-        // Solo el cuero se tiñe: al cambiar a otro material, el tinte se va con
-        // él. Si no, se quedaba el icono del tinte puesto en una armadura de
-        // hierro, que no significa nada.
-        if (columna === 'material' && valor && !material(valor).colorBase) {
+        // Solo el cuero se tiñe: al cambiar a otro material (o al quitar la
+        // pieza), el tinte se va con él. Si no, se quedaba el icono del tinte
+        // puesto en una armadura de hierro, que no significa nada.
+        if (columna === 'material' && !material(valor)?.colorBase) {
           sig[pieza] = { ...sig[pieza], tinte: null }
         }
       }

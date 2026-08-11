@@ -29,8 +29,16 @@ function comun(estado: Estado, campo: keyof Config): string | null | undefined {
 }
 
 /** Pieza que se usa para previsualizar la fila del set completo. */
-const piezaMuestra = (idMaterial: string): Pieza =>
+const piezaMuestra = (idMaterial: string | null): Pieza =>
   admite(idMaterial, 'chestplate') ? 'chestplate' : 'helmet'
+
+/** Config de la fila del set completo: lo que comparten las cuatro piezas. */
+const configDelSet = (estado: Estado): Config => ({
+  material: comun(estado, 'material') ?? null,
+  tinte: comun(estado, 'tinte') ?? null,
+  patron: comun(estado, 'patron') ?? null,
+  trim: comun(estado, 'trim') ?? null,
+})
 
 export default function Rejilla({
   estado,
@@ -65,7 +73,7 @@ export default function Rejilla({
   // La columna de tinte solo existe si hay cuero puesto: es la única armadura
   // que se tiñe, y si no hay ninguna la columna entera son cuadros vacíos que
   // solo confunden.
-  const hayCuero = PIEZAS.some((p) => material(estado[p].material).colorBase !== null)
+  const hayCuero = PIEZAS.some((p) => material(estado[p].material)?.colorBase != null)
   const columnas = (Object.keys(TITULO) as Columna[]).filter((c) => c !== 'tinte' || hayCuero)
 
   return (
@@ -135,19 +143,12 @@ function FilaArmadura({
   onAbrir: (c: Columna) => void
 }) {
   const esSet = fila === 'todas'
-  const cfg: Config = esSet
-    ? {
-        material: (comun(estado, 'material') as string) ?? estado.helmet.material,
-        tinte: comun(estado, 'tinte') ?? null,
-        patron: comun(estado, 'patron') ?? null,
-        trim: comun(estado, 'trim') ?? null,
-      }
-    : estado[fila]
+  const cfg: Config = esSet ? configDelSet(estado) : estado[fila]
 
   const mezcla = (c: Columna) => esSet && comun(estado, CAMPO[c]) === undefined
   const pieza: Pieza = esSet ? piezaMuestra(cfg.material) : fila
-  const esCuero = material(cfg.material).colorBase !== null
-  const disponible = esSet || admite(cfg.material, fila)
+  const esCuero = material(cfg.material)?.colorBase != null
+  const puesta = esSet ? !!cfg.material : admite(cfg.material, fila)
 
   return (
     <div className="flex items-center gap-2">
@@ -157,12 +158,12 @@ function FilaArmadura({
 
       <Celda
         activa={abierto?.columna === 'material' && abierto.fila === fila}
-        titulo={material(cfg.material).nombre}
+        titulo={material(cfg.material)?.nombre ?? 'Sin armadura'}
         onClick={() => onAbrir('material')}
       >
-        {mezcla('material') ? <Mixto /> : disponible
-          ? <IconoArmadura pieza={pieza} cfg={cfg} alt={material(cfg.material).nombre} />
-          : <Vacio titulo="Este material no tiene esta pieza" />}
+        {mezcla('material') ? <Mixto /> : puesta
+          ? <IconoArmadura pieza={pieza} cfg={cfg} alt={material(cfg.material)!.nombre} />
+          : <Vacio titulo="Sin armadura" />}
       </Celda>
 
       {hayCuero && (
@@ -249,14 +250,7 @@ function Selector({
   onElegir: (valor: string | null) => void
   onCerrar: () => void
 }) {
-  const cfg: Config = fila === 'todas'
-    ? {
-        material: (comun(estado, 'material') as string) ?? estado.helmet.material,
-        tinte: comun(estado, 'tinte') ?? null,
-        patron: comun(estado, 'patron') ?? null,
-        trim: comun(estado, 'trim') ?? null,
-      }
-    : estado[fila]
+  const cfg: Config = fila === 'todas' ? configDelSet(estado) : estado[fila]
   const pieza: Pieza = fila === 'todas' ? piezaMuestra(cfg.material) : fila
 
   const opciones = construirOpciones(columna, pieza, cfg)
@@ -298,11 +292,14 @@ function Selector({
 function construirOpciones(columna: Columna, pieza: Pieza, cfg: Config): Opcion[] {
   switch (columna) {
     case 'material':
-      return MATERIALES.filter((m) => m.piezas.includes(pieza)).map((m) => ({
-        id: m.id,
-        nombre: m.nombre,
-        icono: <IconoArmadura pieza={pieza} cfg={{ ...cfg, material: m.id }} alt={m.nombre} />,
-      }))
+      return [
+        { id: null, nombre: 'Sin armadura', icono: <Vacio /> },
+        ...MATERIALES.filter((m) => m.piezas.includes(pieza)).map((m) => ({
+          id: m.id,
+          nombre: m.nombre,
+          icono: <IconoArmadura pieza={pieza} cfg={{ ...cfg, material: m.id }} alt={m.nombre} />,
+        })),
+      ]
     case 'tinte':
       return [
         { id: null, nombre: 'Sin teñir', icono: <Vacio /> },
