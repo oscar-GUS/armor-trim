@@ -183,7 +183,9 @@ function PanelCamara({
         </div>
       </div>
 
-      <p className="text-[11px] text-[#52525B]">Arrastra sobre el modelo para girarlo y usa la rueda para acercarte.</p>
+      <p className="text-[11px] text-[#52525B]">
+        Arrastra sobre el modelo para girarlo, Ctrl + rueda para acercarte y doble clic para volver al encuadre.
+      </p>
     </div>
   )
 }

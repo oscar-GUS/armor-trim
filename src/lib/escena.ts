@@ -96,10 +96,12 @@ export function crearEscena(contenedor: HTMLElement): Escena {
   let modo: ModoCamara = 'quieto'
   let thetaBase = 0
   let thetaAuto = 0
-  let phi = Math.PI / 2 - 0.12
   // 34 unidades de muñeco en 41 de encuadre: entra entero con aire arriba y
   // abajo en vez de rozar los bordes.
-  let radio = 60
+  const PHI_INICIAL = Math.PI / 2 - 0.12
+  const RADIO_INICIAL = 60
+  let phi = PHI_INICIAL
+  let radio = RADIO_INICIAL
 
   function colocarCamara() {
     const t = thetaBase + thetaAuto
@@ -130,15 +132,25 @@ export function crearEscena(contenedor: HTMLElement): Escena {
     arrastrando = false
     if (lienzo.hasPointerCapture(e.pointerId)) lienzo.releasePointerCapture(e.pointerId)
   }
+  // La rueda a secas NO se toca: la herramienta va dentro de una página larga y
+  // robarle el scroll dejaba al muñeco pegado a la cara sin querer. Para acercar
+  // hay que mantener Ctrl (o ⌘), como en un mapa embebido.
   const onWheel = (e: WheelEvent) => {
+    if (!e.ctrlKey && !e.metaKey) return
     e.preventDefault()
-    radio = Math.min(110, Math.max(24, radio * (1 + Math.sign(e.deltaY) * 0.1)))
+    radio = Math.min(110, Math.max(40, radio * (1 + Math.sign(e.deltaY) * 0.1)))
+  }
+  // Doble clic: vuelve al encuadre de siempre, por si uno se pierde girando.
+  const onDobleClic = () => {
+    radio = RADIO_INICIAL
+    phi = PHI_INICIAL
   }
   lienzo.addEventListener('pointerdown', onDown)
   lienzo.addEventListener('pointermove', onMove)
   lienzo.addEventListener('pointerup', onUp)
   lienzo.addEventListener('pointercancel', onUp)
   lienzo.addEventListener('wheel', onWheel, { passive: false })
+  lienzo.addEventListener('dblclick', onDobleClic)
 
   // ── Materiales y mallas ───────────────────────────────────────────────────
   const texSkin = new THREE.CanvasTexture(document.createElement('canvas'))
@@ -263,10 +275,12 @@ export function crearEscena(contenedor: HTMLElement): Escena {
     setModo(m) {
       if (m === 'quieto') {
         thetaBase += thetaAuto
-      } else if (m === 'frente') {
-        thetaBase = 0
-      } else if (m === 'espalda') {
-        thetaBase = Math.PI
+      } else if (m === 'frente' || m === 'espalda') {
+        // Los dos encuadres fijos recolocan también la distancia y la altura:
+        // son la salida de emergencia si uno se ha perdido girando o acercando.
+        thetaBase = m === 'frente' ? 0 : Math.PI
+        radio = RADIO_INICIAL
+        phi = PHI_INICIAL
       }
       thetaAuto = 0
       modo = m
@@ -289,6 +303,7 @@ export function crearEscena(contenedor: HTMLElement): Escena {
       lienzo.removeEventListener('pointerup', onUp)
       lienzo.removeEventListener('pointercancel', onUp)
       lienzo.removeEventListener('wheel', onWheel)
+      lienzo.removeEventListener('dblclick', onDobleClic)
       for (const a of armaduras.values()) {
         a.material.dispose()
         a.textura.dispose()
