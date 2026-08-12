@@ -38,6 +38,8 @@ export default function Visor({
   const [modo, setModo] = useState<ModoCamara>('girar')
   const [fondo, setFondo] = useState(FONDOS[0])
   const [skin, setSkin] = useState<SkinCargada | null>(null)
+  const [errorSkin, setErrorSkin] = useState<string | null>(null)
+  const skinRef = useRef<SkinCargada | null>(null)
   const claves = useRef<Record<string, string>>({})
 
   // Escena: se crea una vez y se destruye al desmontar.
@@ -46,6 +48,10 @@ export default function Visor({
     const escena = crearEscena(contenedor.current)
     escenaRef.current = escena
     claves.current = {}
+    // Si ya había skin cargada (React monta dos veces en desarrollo), se le
+    // vuelve a poner: sin esto el muñeco se queda sin textura y solo se ve la
+    // armadura.
+    if (skinRef.current) escena.setSkin(skinRef.current)
     return () => {
       escena.destruir()
       escenaRef.current = null
@@ -54,10 +60,13 @@ export default function Visor({
 
   // Skin inicial.
   useEffect(() => {
-    skinPorDefecto('steve', false).then(setSkin).catch(() => {})
+    skinPorDefecto('steve', false)
+      .then(setSkin)
+      .catch(() => setErrorSkin('No se pudo cargar la skin de ejemplo. Sube un PNG o busca un nick.'))
   }, [])
 
   useEffect(() => {
+    skinRef.current = skin
     if (skin) escenaRef.current?.setSkin(skin)
   }, [skin, escenaRef])
 
@@ -110,6 +119,8 @@ export default function Visor({
             </button>
           ))}
         </div>
+
+        {errorSkin && <p className="pb-2 text-[11px] text-[#F87171]">{errorSkin}</p>}
 
         {pestana === 'camara'
           ? <PanelCamara modo={modo} setModo={setModo} fondo={fondo} setFondo={setFondo} />

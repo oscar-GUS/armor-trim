@@ -8,12 +8,15 @@ const imgCache = new Map<string, Promise<HTMLImageElement>>()
 export function cargarImagen(src: string): Promise<HTMLImageElement> {
   let p = imgCache.get(src)
   if (!p) {
-    p = new Promise((resolve, reject) => {
+    p = new Promise<HTMLImageElement>((resolve, reject) => {
       const img = new Image()
       img.onload = () => resolve(img)
       img.onerror = () => reject(new Error(`No se pudo cargar ${src}`))
       img.src = src
     })
+    // Un fallo puntual de red no puede envenenar la caché para toda la sesión:
+    // si sale mal se olvida y el siguiente intento vuelve a pedirla.
+    p.catch(() => imgCache.delete(src))
     imgCache.set(src, p)
   }
   return p
