@@ -14,11 +14,19 @@ export type ModoCamara = 'quieto' | 'girar' | 'frente' | 'espalda'
 const CARAS: (keyof Caras)[] = ['left', 'right', 'top', 'bottom', 'front', 'back']
 const CARAS_ESPEJO: (keyof Caras)[] = ['right', 'left', 'top', 'bottom', 'front', 'back']
 
+// Las UV se meten una centésima de píxel hacia dentro de su recorte. Justo en
+// el borde, el redondeo puede llevarse la muestra al píxel de al lado del
+// atlas, que es de otra cara y puede ser opaco donde este es transparente: eso
+// dibujaba rayitas de un píxel flotando en el contorno de la armadura.
+const MARGEN_UV = 0.01
+
 function ponerUV(uv: THREE.BufferAttribute, cara: number, r: { x: number; y: number; w: number; h: number }, tw: number, th: number, espejo: boolean) {
-  const x0 = (espejo ? r.x + r.w : r.x) / tw
-  const x1 = (espejo ? r.x : r.x + r.w) / tw
-  const y0 = 1 - r.y / th
-  const y1 = 1 - (r.y + r.h) / th
+  const i0 = r.x + MARGEN_UV
+  const i1 = r.x + r.w - MARGEN_UV
+  const x0 = (espejo ? i1 : i0) / tw
+  const x1 = (espejo ? i0 : i1) / tw
+  const y0 = 1 - (r.y + MARGEN_UV) / th
+  const y1 = 1 - (r.y + r.h - MARGEN_UV) / th
   const i = cara * 4
   uv.setXY(i + 0, x0, y0)
   uv.setXY(i + 1, x1, y0)
@@ -73,8 +81,17 @@ export function crearEscena(contenedor: HTMLElement): Escena {
   // el encuadre; con esto los márgenes de arriba y abajo quedan parejos.)
   const objetivo = new THREE.Vector3(0, 16.4, 0)
 
-  const render = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })
-  render.setPixelRatio(Math.min(2, window.devicePixelRatio))
+  // Sin multimuestreo y renderizando al doble de resolución. Con MSAA, en los
+  // píxeles del borde el sombreador se evalúa en el centro del píxel aunque
+  // caiga fuera del triángulo, así que la coordenada de textura se sale del
+  // recorte de esa cara y acaba leyendo el píxel de al lado del atlas: si ese
+  // vecino es opaco (y en el layout de Minecraft las caras van pegadas), sale
+  // una rayita de un píxel flotando en el contorno. Bajando la resolución de
+  // vuelta al componer se suavizan los bordes igual, sin ese efecto.
+  const render = new THREE.WebGLRenderer({ antialias: false, preserveDrawingBuffer: true })
+  // El doble de la densidad de la pantalla, con tope de 3 para no calentar
+  // portátiles con pantalla HiDPI.
+  render.setPixelRatio(Math.min(3, window.devicePixelRatio * 2))
   render.domElement.style.display = 'block'
   render.domElement.style.width = '100%'
   render.domElement.style.height = '100%'
@@ -153,10 +170,15 @@ export function crearEscena(contenedor: HTMLElement): Escena {
   lienzo.addEventListener('dblclick', onDobleClic)
 
   // ── Materiales y mallas ───────────────────────────────────────────────────
+  /** Vecino más próximo en las dos direcciones: píxeles cuadrados, como el juego. */
+  function afinar(t: THREE.Texture) {
+    t.magFilter = THREE.NearestFilter
+    t.minFilter = THREE.NearestFilter
+    t.colorSpace = THREE.SRGBColorSpace
+  }
+
   const texSkin = new THREE.CanvasTexture(document.createElement('canvas'))
-  texSkin.magFilter = THREE.NearestFilter
-  texSkin.minFilter = THREE.NearestFilter
-  texSkin.colorSpace = THREE.SRGBColorSpace
+  afinar(texSkin)
 
   // Cuerpo y segunda capa van con una sola cara, como el juego: son cajas
   // cerradas y dibujar el interior solo mete costuras en los codos y el cuello.
@@ -208,9 +230,7 @@ export function crearEscena(contenedor: HTMLElement): Escena {
     if (!textura) return
 
     const tex = new THREE.CanvasTexture(textura)
-    tex.magFilter = THREE.NearestFilter
-    tex.minFilter = THREE.NearestFilter
-    tex.colorSpace = THREE.SRGBColorSpace
+    afinar(tex)
     // Doble cara: una pieza de armadura es una cáscara con huecos (el visor del
     // casco, el hombro abierto...). Con una sola cara se vería el interior
     // transparente al mirar desde abajo o desde dentro.
