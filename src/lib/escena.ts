@@ -176,29 +176,9 @@ export function crearEscena(contenedor: HTMLElement): Escena {
     grupoJugador = g
   }
 
-  /**
-   * Color del forro: la media de la textura, oscurecida. La armadura queda una
-   * unidad separada del cuerpo, así que por los huecos de la textura (la cara
-   * del casco, el cuello del peto) se cuela la vista por el anillo que queda
-   * entre medias, y por las esquinas se veía el fondo de lado a lado. El forro
-   * tapa ese anillo con el interior de la propia pieza.
-   */
-  function colorForro(textura: HTMLCanvasElement): THREE.Color {
-    const d = textura.getContext('2d', { willReadFrequently: true })!.getImageData(0, 0, textura.width, textura.height).data
-    let r = 0, g = 0, b = 0, n = 0
-    for (let i = 0; i < d.length; i += 4) {
-      if (d[i + 3] < 128) continue
-      r += d[i]; g += d[i + 1]; b += d[i + 2]; n++
-    }
-    if (!n) return new THREE.Color(0x101010)
-    const k = 0.32 / 255
-    return new THREE.Color(r * k / n, g * k / n, b * k / n)
-  }
-
   const armaduras = new Map<Pieza, {
     grupo: THREE.Group
     material: THREE.MeshStandardMaterial
-    forro: THREE.MeshBasicMaterial
     textura: THREE.CanvasTexture
   }>()
 
@@ -210,7 +190,6 @@ export function crearEscena(contenedor: HTMLElement): Escena {
         if (o instanceof THREE.Mesh) o.geometry.dispose()
       })
       previo.material.dispose()
-      previo.forro.dispose()
       previo.textura.dispose()
       armaduras.delete(pieza)
     }
@@ -227,26 +206,19 @@ export function crearEscena(contenedor: HTMLElement): Escena {
       map: tex, roughness: 1, metalness: 0, alphaTest: 0.5, side: THREE.DoubleSide,
     })
 
-    const forro = new THREE.MeshBasicMaterial({ color: colorForro(textura), side: THREE.BackSide })
-
     const { partes, inflado, recorteInferior } = PIEZA_PARTES[pieza]
     const grupo = new THREE.Group()
     for (const parte of partesArmadura()) {
       if (!partes.includes(parte.nombre)) continue
-      const geo = caja(parte, parte.base, inflado + (EPSILON[parte.nombre] ?? 0), 64, 32, recorteInferior)
-      const malla = new THREE.Mesh(geo, mat)
+      const malla = new THREE.Mesh(
+        caja(parte, parte.base, inflado + (EPSILON[parte.nombre] ?? 0), 64, 32, recorteInferior),
+        mat,
+      )
       malla.position.set(...parte.pos)
       grupo.add(malla)
-
-      // Cara interna lisa, un pelo por dentro de la cáscara para no pelearse
-      // con ella en el z-buffer. Solo se ve por los huecos de la textura, y
-      // siempre por detrás del cuerpo, que va más cerca de la cámara.
-      const dentro = new THREE.Mesh(caja(parte, parte.base, inflado - 0.02 + (EPSILON[parte.nombre] ?? 0), 64, 32, recorteInferior), forro)
-      dentro.position.set(...parte.pos)
-      grupo.add(dentro)
     }
     raiz.add(grupo)
-    armaduras.set(pieza, { grupo, material: mat, forro, textura: tex })
+    armaduras.set(pieza, { grupo, material: mat, textura: tex })
   }
 
   // ── Bucle ─────────────────────────────────────────────────────────────────
@@ -319,7 +291,6 @@ export function crearEscena(contenedor: HTMLElement): Escena {
       lienzo.removeEventListener('wheel', onWheel)
       for (const a of armaduras.values()) {
         a.material.dispose()
-        a.forro.dispose()
         a.textura.dispose()
       }
       escena.traverse((o) => {
