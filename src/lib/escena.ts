@@ -93,7 +93,7 @@ export function crearEscena(contenedor: HTMLElement): Escena {
   escena.add(raiz)
 
   // ── Cámara ────────────────────────────────────────────────────────────────
-  let modo: ModoCamara = 'girar'
+  let modo: ModoCamara = 'quieto'
   let thetaBase = 0
   let thetaAuto = 0
   let phi = Math.PI / 2 - 0.12

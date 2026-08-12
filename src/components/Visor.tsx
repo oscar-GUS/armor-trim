@@ -35,7 +35,7 @@ export default function Visor({
 }) {
   const contenedor = useRef<HTMLDivElement>(null)
   const [pestana, setPestana] = useState<'camara' | 'skin'>('camara')
-  const [modo, setModo] = useState<ModoCamara>('girar')
+  const [modo, setModo] = useState<ModoCamara>('quieto')
   const [fondo, setFondo] = useState(FONDOS[0])
   const [skin, setSkin] = useState<SkinCargada | null>(null)
   const [errorSkin, setErrorSkin] = useState<string | null>(null)
