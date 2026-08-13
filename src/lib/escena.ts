@@ -177,7 +177,20 @@ export function crearEscena(contenedor: HTMLElement): Escena {
     t.colorSpace = THREE.SRGBColorSpace
   }
 
-  const texSkin = new THREE.CanvasTexture(document.createElement('canvas'))
+  // La textura de la skin vive SIEMPRE en este lienzo de 64×64, y las skins que
+  // vayan llegando se pintan dentro. No se puede cambiar `texSkin.image` por
+  // otro lienzo: three.js reserva la memoria de la textura en la GPU la primera
+  // vez que la sube y a partir de ahí solo escribe encima. Si la primera subida
+  // pasa con un lienzo de otro tamaño (el vacío que salía de `createElement`,
+  // que son 300×150), la reserva se queda con ese tamaño y la skin de 64×64
+  // acaba metida en una esquina: el modelo lee el resto, que está vacío, y con
+  // `alphaTest` desaparece entero. Justo lo que se veía: armadura sin muñeco.
+  const lienzoSkin = document.createElement('canvas')
+  lienzoSkin.width = 64
+  lienzoSkin.height = 64
+  const pincelSkin = lienzoSkin.getContext('2d')!
+  pincelSkin.imageSmoothingEnabled = false
+  const texSkin = new THREE.CanvasTexture(lienzoSkin)
   afinar(texSkin)
 
   // Cuerpo y segunda capa van con una sola cara, como el juego: son cajas
@@ -288,7 +301,8 @@ export function crearEscena(contenedor: HTMLElement): Escena {
         slimActual = skin.slim
         construirJugador(skin.slim)
       }
-      texSkin.image = skin.canvas
+      pincelSkin.clearRect(0, 0, 64, 64)
+      pincelSkin.drawImage(skin.canvas, 0, 0)
       texSkin.needsUpdate = true
     },
     setArmadura,
