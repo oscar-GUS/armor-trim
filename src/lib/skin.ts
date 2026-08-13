@@ -98,7 +98,9 @@ function a64(img: HTMLImageElement): HTMLCanvasElement {
 /** Pista para el modelo fino: la columna extra del brazo derecho vacía. */
 function pareceSlim(c: HTMLCanvasElement): boolean {
   const d = c.getContext('2d', { willReadFrequently: true })!.getImageData(47, 20, 1, 13).data
-  for (let i = 3; i < d.length; i += 4) if (d[i] !== 0) return false
+  // Con margen: leer píxeles de un canvas no da siempre el mismo número (ver
+  // `trimRecoloreado`), y un vacío que vuelva con alfa 1 no puede contar.
+  for (let i = 3; i < d.length; i += 4) if (d[i] > 8) return false
   return true
 }
 

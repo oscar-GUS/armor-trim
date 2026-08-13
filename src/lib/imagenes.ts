@@ -67,6 +67,23 @@ function leerPaleta(nombre: string): Promise<number[]> {
 
 const trimCache = new Map<string, Promise<HTMLCanvasElement>>()
 
+/** Posición en la paleta base del color más parecido a uno dado. */
+function masParecido(base: number[], r: number, g: number, b: number): number {
+  let mejor = 0
+  let cerca = Infinity
+  for (let i = 0; i < base.length; i++) {
+    const dr = ((base[i] >> 16) & 0xff) - r
+    const dg = ((base[i] >> 8) & 0xff) - g
+    const db = (base[i] & 0xff) - b
+    const d = dr * dr + dg * dg + db * db
+    if (d < cerca) {
+      cerca = d
+      mejor = i
+    }
+  }
+  return mejor
+}
+
 /** Devuelve la textura del trim recoloreada con la paleta del material. */
 export function trimRecoloreado(textura: string, paleta: string): Promise<HTMLCanvasElement> {
   const clave = `${textura}|${paleta}`
@@ -78,14 +95,30 @@ export function trimRecoloreado(textura: string, paleta: string): Promise<HTMLCa
         leerPaleta(`palettes/trim/${paleta}.png`),
         pixeles(RUTA(textura)),
       ])
-      const mapa = new Map<number, number>()
-      base.forEach((c, i) => mapa.set(c, destino[i] ?? c))
+
+      // Se busca la entrada MÁS PARECIDA, no la idéntica. Los colores no salen
+      // del PNG: salen de leerlos con `getImageData`, y eso no devuelve siempre
+      // el mismo número. Firefox, con la protección antihuella puesta (modo
+      // estricto o ventana privada), le mete ruido a la lectura para que no se
+      // pueda fichar al usuario por el canvas; los perfiles de color de
+      // pantallas anchas también desplazan valores. Da igual que sea poco: con
+      // una comparación exacta, un solo punto de diferencia deja el píxel sin
+      // recolorear. Y como la paleta base son 8 píxeles, ahí el ruido se lleva
+      // por delante media tabla: el trim salía en gris, que es justo el color
+      // que tiene la textura sin tocar. Entre tonos que van de 32 en 32, «el
+      // más parecido» acierta aunque los dos lados vengan movidos.
+      const memoria = new Map<number, number>()
 
       const d = datos.data
       for (let i = 0; i < d.length; i += 4) {
-        if (d[i + 3] === 0) continue
-        const nuevo = mapa.get((d[i] << 16) | (d[i + 1] << 8) | d[i + 2])
-        if (nuevo === undefined) continue
+        // El ruido también puede subir un poco el alfa de un píxel vacío.
+        if (d[i + 3] < 8) continue
+        const leido = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2]
+        let nuevo = memoria.get(leido)
+        if (nuevo === undefined) {
+          nuevo = destino[masParecido(base, d[i], d[i + 1], d[i + 2])] ?? leido
+          memoria.set(leido, nuevo)
+        }
         d[i] = (nuevo >> 16) & 0xff
         d[i + 1] = (nuevo >> 8) & 0xff
         d[i + 2] = nuevo & 0xff
