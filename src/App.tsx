@@ -10,6 +10,14 @@ function estadoDeLaURL(): Estado {
   return (cod && desdeURL(cod)) || estadoInicial()
 }
 
+// Avisa a MineLite (la página que embebe la herramienta) de que se ha usado de
+// verdad, para medirlo en su analítica. Suelta, fuera de MineLite, no hace nada.
+function avisarUso(accion: string) {
+  if (window.parent !== window) {
+    window.parent.postMessage({ fuente: 'minelite-tool', tipo: 'tool_use', accion }, window.location.origin)
+  }
+}
+
 export default function App() {
   const [estado, setEstado] = useState<Estado>(estadoDeLaURL)
   const [copiado, setCopiado] = useState<'comando' | null>(null)
@@ -48,6 +56,7 @@ export default function App() {
   function capturar() {
     const url = escenaRef.current?.captura()
     if (!url) return
+    avisarUso('foto')
     const a = document.createElement('a')
     a.href = url
     a.download = 'armor-trim.png'
@@ -55,6 +64,7 @@ export default function App() {
   }
 
   async function copiar(texto: string, que: 'comando') {
+    avisarUso('copiar_comando')
     try {
       await navigator.clipboard.writeText(texto)
       setCopiado(que)
